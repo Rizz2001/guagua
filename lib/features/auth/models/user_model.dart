@@ -1,9 +1,4 @@
-enum UserRole {
-  admin,
-  supervisor,
-  cashier,
-  warehouse,
-}
+enum UserRole { admin, supervisor, cashier, warehouse }
 
 extension UserRoleExtension on UserRole {
   String get displayName {
@@ -19,9 +14,14 @@ extension UserRoleExtension on UserRole {
     }
   }
 
-  bool get canEditExchangeRate => this == UserRole.admin || this == UserRole.supervisor;
-  bool get canViewFinancials => this == UserRole.admin || this == UserRole.supervisor;
-  bool get canManageInventory => this == UserRole.admin || this == UserRole.supervisor || this == UserRole.warehouse;
+  bool get canEditExchangeRate =>
+      this == UserRole.admin || this == UserRole.supervisor;
+  bool get canViewFinancials =>
+      this == UserRole.admin || this == UserRole.supervisor;
+  bool get canManageInventory =>
+      this == UserRole.admin ||
+      this == UserRole.supervisor ||
+      this == UserRole.warehouse;
 }
 
 class UserModel {

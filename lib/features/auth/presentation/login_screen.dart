@@ -16,25 +16,32 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
-  
+
   bool _isRegistering = false;
   UserRole _selectedRole = UserRole.admin;
 
   Future<void> _handleSubmit() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
-    
+
     if (email.isEmpty || password.isEmpty) return;
 
     if (_isRegistering) {
       final name = _nameController.text.trim();
       if (name.isEmpty) return;
-      
-      final success = await ref.read(authProvider.notifier).register(email, password, name, _selectedRole);
+
+      final success = await ref
+          .read(authProvider.notifier)
+          .register(email, password, name, _selectedRole);
       if (success) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Usuario creado exitosamente. Por favor, inicia sesión.'), backgroundColor: AppColors.successGreen),
+          const SnackBar(
+            content: Text(
+              'Usuario creado exitosamente. Por favor, inicia sesión.',
+            ),
+            backgroundColor: AppColors.successGreen,
+          ),
         );
         setState(() => _isRegistering = false);
       }
@@ -65,9 +72,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           flex: 5,
           child: Container(
             padding: const EdgeInsets.all(40),
-            decoration: const BoxDecoration(
-              color: AppColors.primaryCharcoal,
-            ),
+            decoration: const BoxDecoration(color: AppColors.primaryCharcoal),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -80,7 +85,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         color: Colors.white.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.point_of_sale, color: Colors.white, size: 28),
+                      child: const Icon(
+                        Icons.point_of_sale,
+                        color: Colors.white,
+                        size: 28,
+                      ),
                     ),
                     const SizedBox(width: 12),
                     Text(
@@ -97,7 +106,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.successGreen.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
@@ -134,12 +146,19 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 Row(
                   children: [
-                    const Icon(Icons.shield_outlined, color: Colors.white60, size: 18),
+                    const Icon(
+                      Icons.shield_outlined,
+                      color: Colors.white60,
+                      size: 18,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'RBAC • Supabase Auth • RLS Policies',
-                        style: TextStyle(color: Colors.white.withValues(alpha: 0.6), fontSize: 12),
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.6),
+                          fontSize: 12,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -172,7 +191,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             color: AppColors.primaryCharcoal,
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.point_of_sale, color: Colors.white, size: 22),
+                          child: const Icon(
+                            Icons.point_of_sale,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
                         const SizedBox(width: 10),
                         Expanded(
@@ -199,15 +222,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  _isRegistering 
-                    ? 'Registra un nuevo usuario en la base de datos de Supabase.'
-                    : 'Ingresa tu correo y contraseña para acceder.',
+                  _isRegistering
+                      ? 'Registra un nuevo usuario en la base de datos de Supabase.'
+                      : 'Ingresa tu correo y contraseña para acceder.',
                   style: TextStyle(color: AppColors.textMuted, fontSize: 13),
                 ),
                 const SizedBox(height: 24),
 
                 if (_isRegistering) ...[
-                  Text('Nombre Completo', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13)),
+                  Text(
+                    'Nombre Completo',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   TextField(
                     controller: _nameController,
@@ -218,7 +247,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  Text('Rol en el Sistema', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13)),
+                  Text(
+                    'Rol en el Sistema',
+                    style: GoogleFonts.plusJakartaSans(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -246,7 +281,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 16),
                 ],
 
-                Text('Correo Electrónico', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13)),
+                Text(
+                  'Correo Electrónico',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _emailController,
@@ -258,7 +299,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                Text('Contraseña', style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 13)),
+                Text(
+                  'Contraseña',
+                  style: GoogleFonts.plusJakartaSans(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
                 const SizedBox(height: 8),
                 TextField(
                   controller: _passwordController,
@@ -275,7 +322,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     padding: const EdgeInsets.only(top: 12),
                     child: Text(
                       authState.errorMessage!,
-                      style: const TextStyle(color: AppColors.dangerText, fontSize: 13, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: AppColors.dangerText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 const SizedBox(height: 24),
@@ -288,8 +339,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     child: authState.isLoading
                         ? const CircularProgressIndicator(color: Colors.white)
                         : Text(
-                            _isRegistering ? 'Registrar Usuario' : 'Ingresar a POS',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            _isRegistering
+                                ? 'Registrar Usuario'
+                                : 'Ingresar a POS',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
                           ),
                   ),
                 ),
@@ -305,10 +361,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       });
                     },
                     child: Text(
-                      _isRegistering 
-                        ? '¿Ya tienes cuenta? Iniciar sesión'
-                        : '¿No tienes cuenta? Registrar usuario',
-                      style: const TextStyle(color: AppColors.primaryCharcoal, fontWeight: FontWeight.bold),
+                      _isRegistering
+                          ? '¿Ya tienes cuenta? Iniciar sesión'
+                          : '¿No tienes cuenta? Registrar usuario',
+                      style: const TextStyle(
+                        color: AppColors.primaryCharcoal,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
@@ -324,7 +383,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       body: SafeArea(
         child: Center(
           child: Container(
-            constraints: BoxConstraints(maxWidth: 1000, maxHeight: _isRegistering ? 750 : 600),
+            constraints: BoxConstraints(
+              maxWidth: 1000,
+              maxHeight: _isRegistering ? 750 : 600,
+            ),
             margin: const EdgeInsets.all(24),
             decoration: BoxDecoration(
               color: Colors.white,
@@ -340,9 +402,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(24),
-              child: Row(
-                children: rowChildren,
-              ),
+              child: Row(children: rowChildren),
             ),
           ),
         ),

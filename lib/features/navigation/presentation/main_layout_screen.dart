@@ -5,6 +5,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/responsive_layout.dart';
 import '../../auth/controllers/auth_controller.dart';
 import '../../auth/models/user_model.dart';
+import '../../company/controllers/company_controller.dart';
 import '../../cash_shift/presentation/cash_shift_screen.dart';
 import '../../credit/presentation/credit_management_screen.dart';
 import '../../dashboard/presentation/dashboard_screen.dart';
@@ -37,14 +38,34 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
   Widget build(BuildContext context) {
     final authState = ref.watch(authProvider);
     final user = authState.currentUser;
+    final companyState = ref.watch(companyProvider);
+    final activeCompany = companyState.activeCompany;
     final isMobile = ResponsiveLayout.isMobile(context);
 
     if (isMobile) {
       return Scaffold(
         appBar: AppBar(
-          title: Text(
-            'Guagua POS',
-            style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w800, fontSize: 18),
+          title: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                activeCompany?.tradeName ?? 'Guagua ERP',
+                style: GoogleFonts.plusJakartaSans(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 16,
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                activeCompany != null
+                    ? 'RIF: ${activeCompany.rif}'
+                    : 'Venezuela',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: AppColors.textMuted,
+                ),
+              ),
+            ],
           ),
           backgroundColor: Colors.white,
           foregroundColor: AppColors.textDark,
@@ -61,26 +82,65 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
           child: Column(
             children: [
               UserAccountsDrawerHeader(
-                accountName: Text(user?.name ?? 'Operador', style: const TextStyle(fontWeight: FontWeight.bold)),
-                accountEmail: Text('Rol: ${user?.role.displayName ?? "Cajero"}'),
+                accountName: Text(
+                  '${user?.name ?? "Operador"} • ${activeCompany?.tradeName ?? "Guagua ERP"}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                accountEmail: Text(
+                  'Rol: ${user?.role.displayName ?? "Cajero"} • ${activeCompany?.rif ?? "J-50000000-0"}',
+                ),
                 currentAccountPicture: CircleAvatar(
                   backgroundColor: Colors.white,
                   child: Text(
-                    user?.name.substring(0, 1) ?? 'U',
-                    style: const TextStyle(color: AppColors.primaryCharcoal, fontWeight: FontWeight.bold),
+                    user?.name.isNotEmpty == true
+                        ? user!.name.substring(0, 1).toUpperCase()
+                        : 'U',
+                    style: const TextStyle(
+                      color: AppColors.primaryCharcoal,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
-                decoration: const BoxDecoration(color: AppColors.primaryCharcoal),
+                decoration: const BoxDecoration(
+                  color: AppColors.primaryCharcoal,
+                ),
               ),
               Expanded(
                 child: ListView(
                   children: [
-                    _buildDrawerItem(0, Icons.shopping_cart, 'Punto de Venta (POS)'),
-                    if (user?.role.canViewFinancials ?? true) _buildDrawerItem(1, Icons.dashboard, 'Dashboard & Riesgo'),
-                    _buildDrawerItem(2, Icons.credit_score, 'Cuentas por Cobrar'),
-                    if (user?.role.canManageInventory ?? true) _buildDrawerItem(3, Icons.inventory_2, 'Inventario & Combos'),
-                    if (user?.role.canViewFinancials ?? true) _buildDrawerItem(4, Icons.local_shipping, 'Compras (CPP)'),
-                    _buildDrawerItem(5, Icons.receipt_long, 'Cierre de Caja X/Z'),
+                    _buildDrawerItem(
+                      0,
+                      Icons.shopping_cart,
+                      'Punto de Venta (POS)',
+                    ),
+                    if (user?.role.canViewFinancials ?? true)
+                      _buildDrawerItem(
+                        1,
+                        Icons.dashboard,
+                        'Dashboard & Riesgo',
+                      ),
+                    _buildDrawerItem(
+                      2,
+                      Icons.credit_score,
+                      'Cuentas por Cobrar',
+                    ),
+                    if (user?.role.canManageInventory ?? true)
+                      _buildDrawerItem(
+                        3,
+                        Icons.inventory_2,
+                        'Inventario & Combos',
+                      ),
+                    if (user?.role.canViewFinancials ?? true)
+                      _buildDrawerItem(
+                        4,
+                        Icons.local_shipping,
+                        'Compras (CPP)',
+                      ),
+                    _buildDrawerItem(
+                      5,
+                      Icons.receipt_long,
+                      'Cierre de Caja X/Z',
+                    ),
                     _buildDrawerItem(6, Icons.settings, 'Configuración'),
                   ],
                 ),
@@ -96,10 +156,22 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
           unselectedItemColor: AppColors.textMuted,
           type: BottomNavigationBarType.fixed,
           items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.shopping_cart), label: 'POS'),
-            BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Riesgo'),
-            BottomNavigationBarItem(icon: Icon(Icons.credit_score), label: 'Cobrar'),
-            BottomNavigationBarItem(icon: Icon(Icons.receipt_long), label: 'Caja'),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.shopping_cart),
+              label: 'POS',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.dashboard),
+              label: 'Riesgo',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.credit_score),
+              label: 'Cobrar',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.receipt_long),
+              label: 'Caja',
+            ),
           ],
         ),
       );
@@ -129,7 +201,11 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
                           color: AppColors.primaryCharcoal,
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.point_of_sale, color: Colors.white, size: 22),
+                        child: const Icon(
+                          Icons.point_of_sale,
+                          color: Colors.white,
+                          size: 22,
+                        ),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -137,16 +213,23 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Guagua POS',
+                              activeCompany?.tradeName ?? 'Guagua ERP',
                               style: GoogleFonts.plusJakartaSans(
                                 fontWeight: FontWeight.w800,
-                                fontSize: 16,
+                                fontSize: 15,
                                 color: AppColors.textDark,
                               ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                             Text(
-                              'Sistema General',
-                              style: TextStyle(color: AppColors.textMuted, fontSize: 11),
+                              activeCompany != null
+                                  ? 'RIF: ${activeCompany.rif}'
+                                  : 'Empresa General',
+                              style: const TextStyle(
+                                color: AppColors.textMuted,
+                                fontSize: 11,
+                              ),
+                              overflow: TextOverflow.ellipsis,
                             ),
                           ],
                         ),
@@ -158,16 +241,51 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
                 const SizedBox(height: 12),
 
                 // Navigation Items
-                _buildNavItem(0, Icons.shopping_cart_outlined, Icons.shopping_cart, 'Punto de Venta (POS)'),
+                _buildNavItem(
+                  0,
+                  Icons.shopping_cart_outlined,
+                  Icons.shopping_cart,
+                  'Punto de Venta (POS)',
+                ),
                 if (user?.role.canViewFinancials ?? true)
-                  _buildNavItem(1, Icons.dashboard_outlined, Icons.dashboard, 'Dashboard & Riesgo'),
-                _buildNavItem(2, Icons.credit_score_outlined, Icons.credit_score, 'Cuentas por Cobrar'),
+                  _buildNavItem(
+                    1,
+                    Icons.dashboard_outlined,
+                    Icons.dashboard,
+                    'Dashboard & Riesgo',
+                  ),
+                _buildNavItem(
+                  2,
+                  Icons.credit_score_outlined,
+                  Icons.credit_score,
+                  'Cuentas por Cobrar',
+                ),
                 if (user?.role.canManageInventory ?? true)
-                  _buildNavItem(3, Icons.inventory_2_outlined, Icons.inventory_2, 'Inventario & Combos'),
+                  _buildNavItem(
+                    3,
+                    Icons.inventory_2_outlined,
+                    Icons.inventory_2,
+                    'Inventario & Combos',
+                  ),
                 if (user?.role.canViewFinancials ?? true)
-                  _buildNavItem(4, Icons.local_shipping_outlined, Icons.local_shipping, 'Compras (CPP)'),
-                _buildNavItem(5, Icons.receipt_long_outlined, Icons.receipt_long, 'Cierre de Caja X/Z'),
-                _buildNavItem(6, Icons.settings_outlined, Icons.settings, 'Configuración'),
+                  _buildNavItem(
+                    4,
+                    Icons.local_shipping_outlined,
+                    Icons.local_shipping,
+                    'Compras (CPP)',
+                  ),
+                _buildNavItem(
+                  5,
+                  Icons.receipt_long_outlined,
+                  Icons.receipt_long,
+                  'Cierre de Caja X/Z',
+                ),
+                _buildNavItem(
+                  6,
+                  Icons.settings_outlined,
+                  Icons.settings,
+                  'Configuración',
+                ),
 
                 const Spacer(),
                 const Divider(height: 1),
@@ -186,7 +304,11 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
                               backgroundColor: AppColors.primaryCharcoal,
                               child: Text(
                                 user.name.substring(0, 1),
-                                style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -196,18 +318,28 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
                                 children: [
                                   Text(
                                     user.name,
-                                    style: GoogleFonts.plusJakartaSans(fontSize: 12, fontWeight: FontWeight.w700),
+                                    style: GoogleFonts.plusJakartaSans(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: AppColors.background,
                                       borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Text(
                                       user.role.displayName,
-                                      style: TextStyle(fontSize: 10, color: AppColors.textDark, fontWeight: FontWeight.bold),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        color: AppColors.textDark,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
                                   ),
                                 ],
@@ -221,7 +353,10 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
                             ref.read(authProvider.notifier).logout();
                           },
                           icon: const Icon(Icons.logout, size: 14),
-                          label: const Text('Cerrar Turno', style: TextStyle(fontSize: 11)),
+                          label: const Text(
+                            'Cerrar Turno',
+                            style: TextStyle(fontSize: 11),
+                          ),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size(double.infinity, 32),
                             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -235,9 +370,7 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
           ),
 
           // Main View Content Area
-          Expanded(
-            child: _pages[_selectedIndex],
-          ),
+          Expanded(child: _pages[_selectedIndex]),
         ],
       ),
     );
@@ -245,8 +378,20 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
 
   Widget _buildDrawerItem(int index, IconData icon, String title) {
     return ListTile(
-      leading: Icon(icon, color: _selectedIndex == index ? AppColors.primaryCharcoal : AppColors.textMuted),
-      title: Text(title, style: TextStyle(fontWeight: _selectedIndex == index ? FontWeight.bold : FontWeight.normal)),
+      leading: Icon(
+        icon,
+        color: _selectedIndex == index
+            ? AppColors.primaryCharcoal
+            : AppColors.textMuted,
+      ),
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: _selectedIndex == index
+              ? FontWeight.bold
+              : FontWeight.normal,
+        ),
+      ),
       selected: _selectedIndex == index,
       onTap: () {
         setState(() => _selectedIndex = index);
@@ -255,7 +400,12 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
     );
   }
 
-  Widget _buildNavItem(int index, IconData iconUnselected, IconData iconSelected, String label) {
+  Widget _buildNavItem(
+    int index,
+    IconData iconUnselected,
+    IconData iconSelected,
+    String label,
+  ) {
     final isSelected = _selectedIndex == index;
 
     return Padding(
@@ -281,7 +431,9 @@ class _MainLayoutScreenState extends ConsumerState<MainLayoutScreen> {
                     label,
                     style: GoogleFonts.plusJakartaSans(
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isSelected
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       color: isSelected ? Colors.white : AppColors.textDark,
                     ),
                     overflow: TextOverflow.ellipsis,

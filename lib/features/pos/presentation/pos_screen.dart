@@ -11,6 +11,8 @@ import '../../../shared/widgets/error_state.dart';
 import '../../../shared/widgets/loading_state.dart';
 import '../controllers/pos_controller.dart';
 import '../models/product_model.dart';
+import '../../../core/services/print_spooler_service.dart';
+import '../../../shared/widgets/supervisor_auth_dialog.dart';
 import 'widgets/payment_modal_dialog.dart';
 import 'widgets/pos_product_card.dart';
 
@@ -128,6 +130,35 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                                 ),
                                 const SizedBox(width: 6),
                                 const Icon(Icons.edit, size: 14, color: AppColors.comboPurpleText),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        // Apertura Manual de Gaveta de Dinero (Anti-Fraude)
+                        InkWell(
+                          onTap: () => _handleManualCashDrawer(context),
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: AppColors.cardBorder),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.point_of_sale, size: 16, color: AppColors.primaryCharcoal),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Gaveta',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 13,
+                                    color: AppColors.textDark,
+                                  ),
+                                ),
                               ],
                             ),
                           ),
@@ -251,7 +282,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                         ),
                         if (cartState.items.isNotEmpty)
                           TextButton(
-                            onPressed: () => ref.read(posCartProvider.notifier).clearCart(),
+                            onPressed: () => _handleClearCart(context),
                             child: const Text('Limpiar', style: TextStyle(color: AppColors.dangerText)),
                           ),
                       ],
@@ -320,7 +351,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                                         children: [
                                           IconButton(
                                             icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                            onPressed: () => ref.read(posCartProvider.notifier).updateQuantity(item.product.id, -1),
+                                            onPressed: () => _handleDecrementItem(context, item.product.id, item.product.title, item.quantity),
                                           ),
                                           Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.bold)),
                                           IconButton(
@@ -455,13 +486,14 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         totalUsd: totalUsd,
         exchangeRate: exchangeRate,
         itemsSummary: itemsSummary,
-        onPaymentSuccess: (bool shouldPrint) async {
+        onPaymentSuccess: (bool shouldPrint, Map<String, dynamic> paymentInfo) async {
           // Lógica Atómica de Supabase: Guardar venta, ítems y desarmar cajas
           final success = await ref.read(posCartProvider.notifier).processSale(
             cashierId: cashierId,
-            paymentMethod: 'MIXED', // Opcionalmente podríamos enviar el detalle exacto
-            paymentDetails: {'items': itemsSummary},
+            paymentMethod: paymentInfo['payment_method'] ?? 'MIXED',
+            paymentDetails: paymentInfo,
             shouldPrint: shouldPrint,
+            igtfUsd: (paymentInfo['igtf_usd'] as num?)?.toDouble() ?? 0.0,
           );
 
           if (success) {
@@ -484,6 +516,60 @@ class _PosScreenState extends ConsumerState<PosScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _handleClearCart(BuildContext context) async {
+    final auth = await SupervisorAuthDialog.show(
+      context: context,
+      action: 'VOID_CART',
+      actionTitle: 'Vaciado de Comanda Completa',
+      description: 'Se eliminarán todos los ítems de la orden actual.',
+    );
+    if (auth != null && auth.authorized) {
+      ref.read(posCartProvider.notifier).clearCart();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('🗑️ Comanda vaciada y registrada en auditoría')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleDecrementItem(BuildContext context, String productId, String productName, int currentQty) async {
+    if (currentQty <= 1) {
+      final auth = await SupervisorAuthDialog.show(
+        context: context,
+        action: 'VOID_ITEM',
+        actionTitle: 'Anulación de Ítem de Comanda',
+        description: 'Se removerá el ítem "$productName" de la comanda actual.',
+        details: {'product_id': productId, 'product_name': productName},
+      );
+      if (auth != null && auth.authorized) {
+        ref.read(posCartProvider.notifier).updateQuantity(productId, -1);
+      }
+    } else {
+      ref.read(posCartProvider.notifier).updateQuantity(productId, -1);
+    }
+  }
+
+  Future<void> _handleManualCashDrawer(BuildContext context) async {
+    final auth = await SupervisorAuthDialog.show(
+      context: context,
+      action: 'MANUAL_CASH_DRAWER',
+      actionTitle: 'Apertura Manual de Gaveta',
+      description: 'Apertura de gaveta de dinero sin venta asociada.',
+    );
+    if (auth != null && auth.authorized) {
+      await PrintSpoolerService.openCashDrawer();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('💵 Gaveta de dinero abierta y registrada en auditoría'),
+            backgroundColor: AppColors.successGreenDark,
+          ),
+        );
+      }
+    }
   }
 
   void _showUpdateExchangeRateDialog(BuildContext context) {

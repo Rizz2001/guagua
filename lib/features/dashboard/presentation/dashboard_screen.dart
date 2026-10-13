@@ -1,18 +1,101 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:printing/printing.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/print_spooler_service.dart';
 import '../../../core/theme/app_radius.dart';
 import '../../../core/theme/app_spacing.dart';
 import '../../../core/utils/responsive_breakpoints.dart';
 import '../../../shared/widgets/app_page_header.dart';
 import '../../../shared/widgets/status_badge.dart';
+import '../controllers/dashboard_controller.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
+  void _printAccountingReport(BuildContext context, DashboardMetrics metrics) async {
+    try {
+      final pdfBytes = await generateAccountingPdf(
+        metrics: metrics,
+        storeName: PrintSpoolerService.activeStoreName,
+      );
+      await Printing.layoutPdf(onLayout: (_) async => pdfBytes, name: 'Reporte_Contable_GuaguaPOS');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error al generar PDF: $e')),
+        );
+      }
+    }
+  }
+
+  void _exportCsv(BuildContext context, List<Map<String, dynamic>> sales) {
+    if (sales.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No hay ventas registradas para exportar')),
+      );
+      return;
+    }
+    final csvContent = generateSalesCsv(sales);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Libro de Ventas Exportado (CSV / Excel)'),
+        content: SizedBox(
+          width: 600,
+          height: 350,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Copia o utiliza el formato CSV para importarlo en Excel o enviarlo a contabilidad:'),
+              const SizedBox(height: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.background,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.cardBorder),
+                  ),
+                  child: SingleChildScrollView(
+                    child: SelectableText(
+                      csvContent,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cerrar')),
+          ElevatedButton.icon(
+            onPressed: () {
+              Clipboard.setData(ClipboardData(text: csvContent));
+              Navigator.of(ctx).pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('📋 CSV copiado al portapapeles exitosamente')),
+              );
+            },
+            icon: const Icon(Icons.copy, size: 16),
+            label: const Text('Copiar al Portapapeles'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isCompact = context.isCompact;
+    final metricsAsync = ref.watch(dashboardMetricsProvider);
+    final metrics = metricsAsync.value ?? DashboardMetrics();
+
+    final isRiskFree = metrics.delinquencyRatePercentage == 0.0;
+    final isHighRisk = metrics.delinquencyRatePercentage > 15.0;
 
     return Container(
       color: AppColors.background,
@@ -21,18 +104,27 @@ class DashboardScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Unified AppPageHeader from Shared Widgets
             AppPageHeader(
               title: 'Dashboard Financiero & Analíticas de Riesgo',
-              subtitle: 'Visión integral de liquidez, dinero en caja, cartera colocada e índice de morosidad.',
+              subtitle: 'Visión integral de liquidez, dinero en caja, margen bruto, IGTF e índice de morosidad.',
               actions: [
+                OutlinedButton.icon(
+                  onPressed: () => _exportCsv(context, metrics.salesLedger),
+                  icon: const Icon(Icons.table_chart_outlined, size: 16),
+                  label: const Text('Exportar CSV'),
+                ),
+                const SizedBox(width: AppSpacing.sm),
                 ElevatedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('Actualizar Vistas'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
-                  ),
+                  onPressed: () => _printAccountingReport(context, metrics),
+                  icon: const Icon(Icons.picture_as_pdf, size: 16),
+                  label: const Text('Reporte PDF'),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryCharcoal),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                IconButton(
+                  tooltip: 'Actualizar métricas',
+                  onPressed: () => ref.refresh(dashboardMetricsProvider),
+                  icon: const Icon(Icons.refresh),
                 ),
               ],
             ),
@@ -40,19 +132,24 @@ class DashboardScreen extends StatelessWidget {
             // Top Financial Metrics Grid (Responsive Layout)
             LayoutBuilder(
               builder: (context, constraints) {
-                final crossAxisCount = constraints.maxWidth > 1024 ? 4 : (constraints.maxWidth > 600 ? 2 : 1);
+                final crossAxisCount = constraints.maxWidth > 1200
+                    ? 5
+                    : (constraints.maxWidth > 900
+                        ? 3
+                        : (constraints.maxWidth > 600 ? 2 : 1));
+
                 return GridView.count(
                   crossAxisCount: crossAxisCount,
                   crossAxisSpacing: AppSpacing.lg,
                   mainAxisSpacing: AppSpacing.lg,
-                  childAspectRatio: constraints.maxWidth > 1024 ? 1.6 : 1.4,
+                  childAspectRatio: constraints.maxWidth > 1024 ? 1.5 : 1.35,
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   children: [
                     _buildMetricCard(
                       title: 'Dinero Real en Caja',
-                      value: '\$0.00',
-                      subtext: 'Efectivo + Pago Móvil + Zelle hoy',
+                      value: '\$${metrics.realCashInDrawerUsd.toStringAsFixed(2)}',
+                      subtext: 'Efectivo + Pago Móvil + Zelle recaudado',
                       icon: Icons.account_balance_wallet,
                       color: AppColors.successGreenDark,
                       badge: const StatusBadge(
@@ -62,9 +159,21 @@ class DashboardScreen extends StatelessWidget {
                       ),
                     ),
                     _buildMetricCard(
+                      title: 'Ganancia Neta (Margen)',
+                      value: '\$${metrics.netProfitUsd.toStringAsFixed(2)}',
+                      subtext: '${metrics.profitMarginPercentage.toStringAsFixed(1)}% margen sobre CPP',
+                      icon: Icons.savings_outlined,
+                      color: AppColors.successGreenDark,
+                      badge: const StatusBadge(
+                        label: 'Margen Real',
+                        icon: Icons.pie_chart_outline,
+                        type: BadgeType.success,
+                      ),
+                    ),
+                    _buildMetricCard(
                       title: 'Capital en la Calle (Deuda)',
-                      value: '\$0.00',
-                      subtext: '0 clientes con crédito activo',
+                      value: '\$${metrics.capitalInStreetUsd.toStringAsFixed(2)}',
+                      subtext: '${metrics.activeCreditClientsCount} clientes con crédito activo',
                       icon: Icons.credit_card,
                       color: AppColors.textDark,
                       badge: const StatusBadge(
@@ -73,23 +182,30 @@ class DashboardScreen extends StatelessWidget {
                         type: BadgeType.neutral,
                       ),
                     ),
-                    // Cumpliendo skill flutter-pos-business-logic: Morosidad 0% -> "Sin Riesgo"
                     _buildMetricCard(
                       title: 'Índice de Morosidad',
-                      value: '0.0%',
-                      subtext: '0 clientes vencidos > 15 días',
+                      value: '${metrics.delinquencyRatePercentage.toStringAsFixed(1)}%',
+                      subtext: '${metrics.overdueClientsCount} deudas vencidas > 15 días',
                       icon: Icons.verified,
-                      color: AppColors.successGreenDark,
-                      badge: const StatusBadge(
-                        label: 'Sin Riesgo',
+                      color: isRiskFree
+                          ? AppColors.successGreenDark
+                          : (isHighRisk ? AppColors.dangerText : Colors.amber.shade800),
+                      badge: StatusBadge(
+                        label: isRiskFree
+                            ? 'Sin Riesgo'
+                            : (isHighRisk ? 'Riesgo Alto' : 'En Observación'),
                         icon: Icons.shield_outlined,
-                        type: BadgeType.success,
+                        type: isRiskFree
+                            ? BadgeType.success
+                            : (isHighRisk ? BadgeType.danger : BadgeType.warning),
                       ),
                     ),
                     _buildMetricCard(
-                      title: 'Cobros de la Semana',
-                      value: '\$0 / \$0',
-                      subtext: '0% recaudado vs proyectado',
+                      title: 'Cobros vs Proyectado',
+                      value: '\$${metrics.weeklySalesCollectedUsd.toStringAsFixed(2)} / \$${metrics.weeklySalesProjectedUsd.toStringAsFixed(2)}',
+                      subtext: metrics.weeklySalesProjectedUsd > 0
+                          ? '${((metrics.weeklySalesCollectedUsd / metrics.weeklySalesProjectedUsd) * 100).toStringAsFixed(0)}% recaudado en caja'
+                          : '0% recaudado vs proyectado',
                       icon: Icons.trending_up,
                       color: AppColors.comboPurpleText,
                       badge: const StatusBadge(
@@ -120,39 +236,69 @@ class DashboardScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Icon(Icons.verified_user, color: AppColors.primaryCharcoal, size: 22),
-                          const SizedBox(width: AppSpacing.md),
                           Expanded(
-                            child: Text(
-                              'Regla de Oro de Flujo de Caja (Fina Rule)',
-                              style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 16),
-                              overflow: TextOverflow.ellipsis,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Regla de Oro: Flujo de Caja vs. Ventas a Crédito',
+                                  style: GoogleFonts.plusJakartaSans(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 16,
+                                    color: AppColors.textDark,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                const Text(
+                                  'Control estricto para evitar iliquidez por exceso de cuentas por cobrar.',
+                                  style: TextStyle(color: AppColors.textMuted, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                            decoration: BoxDecoration(
+                              color: isRiskFree ? AppColors.successGreen.withValues(alpha: 0.15) : AppColors.warningBg,
+                              borderRadius: AppRadius.borderSm,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  isRiskFree ? Icons.check_circle : Icons.warning_amber,
+                                  size: 16,
+                                  color: isRiskFree ? AppColors.successGreenDark : AppColors.warningText,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  isRiskFree ? 'Saludable' : 'Alerta de Crédito',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: isRiskFree ? AppColors.successGreenDark : AppColors.warningText,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: AppSpacing.md),
-                      Container(
-                        padding: const EdgeInsets.all(AppSpacing.md),
-                        decoration: BoxDecoration(
-                          color: AppColors.background,
-                          borderRadius: AppRadius.borderMd,
-                          border: Border.all(color: AppColors.cardBorder),
-                        ),
-                        child: Text(
-                          '💡 "Una venta no es dinero en caja hasta que se cobra". El sistema diferencia estrictamente el Efectivo/Transferencia Recibido de la Cartera Otorgada a Crédito.',
-                          style: GoogleFonts.plusJakartaSans(fontSize: 13, color: AppColors.textDark, height: 1.4),
-                        ),
+                      const SizedBox(height: AppSpacing.xl),
+                      _buildCashflowBar(
+                        label: 'Dinero Real Recaudado en Caja',
+                        amountUsd: metrics.realCashInDrawerUsd,
+                        totalUsd: metrics.realCashInDrawerUsd + metrics.capitalInStreetUsd,
+                        color: AppColors.successGreenDark,
                       ),
-                      const SizedBox(height: AppSpacing.lg),
-
-                      // Comparison Bars
-                      _buildCashflowBar('Ventas Totales Proyectadas', 0.0, 1.0, Colors.grey),
                       const SizedBox(height: AppSpacing.md),
-                      _buildCashflowBar('Dinero Recaudado en Caja (USD)', 0.0, 1.0, AppColors.successGreenDark),
-                      const SizedBox(height: AppSpacing.md),
-                      _buildCashflowBar('Mercancía Entregada a Crédito', 0.0, 1.0, Colors.amber.shade800),
+                      _buildCashflowBar(
+                        label: 'Deuda Colocada en la Calle (Por Cobrar)',
+                        amountUsd: metrics.capitalInStreetUsd,
+                        totalUsd: metrics.realCashInDrawerUsd + metrics.capitalInStreetUsd,
+                        color: AppColors.textMuted,
+                      ),
                     ],
                   ),
                 );
@@ -167,12 +313,51 @@ class DashboardScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Alertas Operativas & Inventario',
-                        style: GoogleFonts.plusJakartaSans(fontWeight: FontWeight.w700, fontSize: 16),
+                      Row(
+                        children: [
+                          const Icon(Icons.notifications_active_outlined, size: 20, color: AppColors.textDark),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Alertas Operativas en Vivo',
+                            style: GoogleFonts.plusJakartaSans(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 16,
+                              color: AppColors.textDark,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: AppSpacing.md),
-                      _buildAlertTile('Sistema Operativo Limpio', 'No existen alertas de stock bajo ni vencimientos por el momento', AppColors.successGreen.withValues(alpha: 0.15), AppColors.successGreenDark),
+                      if (metrics.delinquencyRatePercentage > 10.0) ...[
+                        _buildAlertTile(
+                          'Morosidad Alta Detectada',
+                          '${metrics.delinquencyRatePercentage.toStringAsFixed(1)}% de la cartera supera los 15 días.',
+                          AppColors.dangerBg,
+                          AppColors.dangerText,
+                          Icons.warning_amber_rounded,
+                        ),
+                        const SizedBox(height: AppSpacing.sm),
+                      ],
+                      if (metrics.lowStockAlerts.isNotEmpty) ...[
+                        ...metrics.lowStockAlerts.take(3).map((item) => Padding(
+                              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+                              child: _buildAlertTile(
+                                'Agotamiento Próximo',
+                                item,
+                                AppColors.warningBg,
+                                AppColors.warningText,
+                                Icons.inventory_2_outlined,
+                              ),
+                            )),
+                      ] else ...[
+                        _buildAlertTile(
+                          'Stock Óptimo',
+                          'Todos los productos cuentan con existencias por encima del mínimo.',
+                          AppColors.successGreen.withValues(alpha: 0.1),
+                          AppColors.successGreenDark,
+                          Icons.check_circle_outline,
+                        ),
+                      ],
                     ],
                   ),
                 );
@@ -182,19 +367,19 @@ class DashboardScreen extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(flex: 6, child: cashflowWidget),
-                      const SizedBox(width: AppSpacing.xl),
-                      Expanded(flex: 5, child: alertsWidget),
+                      const SizedBox(width: AppSpacing.lg),
+                      Expanded(flex: 4, child: alertsWidget),
+                    ],
+                  );
+                } else {
+                  return Column(
+                    children: [
+                      cashflowWidget,
+                      const SizedBox(height: AppSpacing.lg),
+                      alertsWidget,
                     ],
                   );
                 }
-
-                return Column(
-                  children: [
-                    cashflowWidget,
-                    const SizedBox(height: AppSpacing.xl),
-                    alertsWidget,
-                  ],
-                );
               },
             ),
           ],
@@ -225,38 +410,44 @@ class DashboardScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Icon(icon, color: color, size: 24),
+              Container(
+                padding: const EdgeInsets.all(AppSpacing.sm),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: AppRadius.borderSm,
+                ),
+                child: Icon(icon, color: color, size: 20),
+              ),
               badge,
             ],
           ),
+          const SizedBox(height: AppSpacing.sm),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               FittedBox(
                 fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
                 child: Text(
                   value,
                   style: GoogleFonts.plusJakartaSans(
-                    fontSize: 22,
                     fontWeight: FontWeight.w800,
+                    fontSize: 20,
                     color: AppColors.textDark,
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.xxs),
+              const SizedBox(height: 2),
               Text(
                 title,
-                style: GoogleFonts.plusJakartaSans(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: AppColors.textDark,
-                ),
+                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.textDark),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
+              const SizedBox(height: 2),
               Text(
                 subtext,
-                style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -267,16 +458,21 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCashflowBar(String label, double valueUsd, double totalUsd, Color color) {
-    final percent = totalUsd > 0 ? (valueUsd / totalUsd).clamp(0.0, 1.0) : 0.0;
+  Widget _buildCashflowBar({
+    required String label,
+    required double amountUsd,
+    required double totalUsd,
+    required Color color,
+  }) {
+    final percent = totalUsd > 0 ? (amountUsd / totalUsd).clamp(0.0, 1.0) : 0.0;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            Text('\$${valueUsd.toStringAsFixed(2)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color)),
+            Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13), overflow: TextOverflow.ellipsis)),
+            Text('\$${amountUsd.toStringAsFixed(2)} (${(percent * 100).toStringAsFixed(0)}%)', style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13)),
           ],
         ),
         const SizedBox(height: AppSpacing.xs),
@@ -293,7 +489,7 @@ class DashboardScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAlertTile(String title, String subtitle, Color bg, Color iconColor) {
+  Widget _buildAlertTile(String title, String subtitle, Color bg, Color iconColor, IconData icon) {
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -302,7 +498,7 @@ class DashboardScreen extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(Icons.check_circle, color: iconColor, size: 20),
+          Icon(icon, color: iconColor, size: 20),
           const SizedBox(width: AppSpacing.md),
           Expanded(
             child: Column(

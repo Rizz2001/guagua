@@ -28,7 +28,7 @@ class CartItemModel {
            quantity >= product.wholesaleMinQty!;
   }
 
-  double get totalPriceUsd => unitPriceUsd * quantity;
+  double get totalPriceUsd => double.parse((unitPriceUsd * quantity).toStringAsFixed(2));
 
   CartItemModel copyWith({int? quantity, bool? isWholesaleApplied}) {
     return CartItemModel(

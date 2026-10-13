@@ -25,7 +25,16 @@ class CurrencyEngine {
     return 'Bs. ${amount.toStringAsFixed(2)}';
   }
 
-  /// Algoritmo de cálculo de vueltos mixtos en USD y VES
+  /// Calcula el 3% de IGTF aplicable exclusivamente sobre pagos en divisas / moneda extranjera (efectivo USD y Zelle)
+  static double calculateIgtfUsd({
+    required double paidUsdCash,
+    required double paidZelleUsd,
+  }) {
+    final double foreignTotal = paidUsdCash + paidZelleUsd;
+    return double.parse((foreignTotal * 0.03).toStringAsFixed(2));
+  }
+
+  /// Algoritmo de cálculo de vueltos mixtos en USD y VES con soporte opcional de IGTF
   static Map<String, dynamic> calculatePaymentAndChange({
     required double totalToPayUsd,
     required double exchangeRate,
@@ -35,10 +44,12 @@ class CurrencyEngine {
     required double paidCardVes,
     required double fondoCajaUsd,
     required double fondoCajaBs,
+    double igtfUsd = 0.0,
   }) {
+    final double effectiveTotalToPayUsd = totalToPayUsd + igtfUsd;
     final double paidVesInUsd = vesToUsd(paidVesPagoMovil + paidCardVes, exchangeRate);
     final double totalPaidUsd = paidUsdCash + paidZelleUsd + paidVesInUsd;
-    final double differenceUsd = totalPaidUsd - totalToPayUsd;
+    final double differenceUsd = totalPaidUsd - effectiveTotalToPayUsd;
 
     if (differenceUsd < -0.009) {
       final double pendingUsd = differenceUsd.abs();

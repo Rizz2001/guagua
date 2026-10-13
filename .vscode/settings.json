@@ -1,0 +1,7 @@
+{
+  "terminal.integrated.env.windows": {
+    "PATH": "${env:PATH};D:\\flutter\\bin;D:\\Program Files\\Supabase",
+    "CHROME_EXECUTABLE": "D:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe"
+  },
+  "dart.flutterSdkPath": "D:\\flutter"
+}

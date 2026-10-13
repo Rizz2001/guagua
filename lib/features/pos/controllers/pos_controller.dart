@@ -102,6 +102,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
     required String paymentMethod,
     required Map<String, dynamic> paymentDetails,
     required bool shouldPrint,
+    double igtfUsd = 0.0,
   }) async {
     if (state.items.isEmpty) return false;
 
@@ -118,6 +119,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
           'product_name': item.product.title,
           'quantity': item.quantity,
           'unit_price_usd': item.unitPriceUsd,
+          'is_wholesale': item.checkWholesaleApplied,
           // CRÍTICO: Pre-calculamos y congelamos el precio en Bs.
           'unit_price_bs': CurrencyEngine.usdToVes(item.unitPriceUsd, frozenExchangeRate),
           'subtotal_usd': item.totalPriceUsd,
@@ -128,6 +130,7 @@ class PosCartNotifier extends Notifier<PosCartState> {
         'invoice_number': invoiceNumber,
         'cashier_id': cashierId,
         'total_usd': state.subtotalUsd,
+        'igtf_usd': igtfUsd,
         'exchange_rate': frozenExchangeRate,
         'payment_method': paymentMethod,
         'payment_details': paymentDetails,
@@ -161,15 +164,15 @@ final productsProvider = StreamProvider<List<ProductModel>>((ref) {
     return list.map((json) => ProductModel(
     id: json['id'],
     title: json['name'],
-    priceRetailUsd: (json['price_usd'] as num).toDouble(), // Nota: en SQL se llama price_usd
+    priceRetailUsd: (json['price_usd'] as num).toDouble(),
     priceWholesaleUsd: json['price_wholesale_usd'] != null ? (json['price_wholesale_usd'] as num).toDouble() : null,
     wholesaleMinQty: json['wholesale_min_qty'] as int?,
     costUsd: json['cost_usd'] != null ? (json['cost_usd'] as num).toDouble() : 0.0,
-    stockUnits: json['stock'] as int, // Nota: en SQL se llama stock
+    stockUnits: json['stock'] as int,
     unitsPerBox: json['units_per_box'] as int? ?? 1,
-    isCombo: false, // No existe is_combo en SQL por ahora
+    isCombo: json['is_combo'] == true,
     category: json['category'] ?? 'General',
-    barcode: json['code'], // Nota: en SQL se llama code
+    barcode: json['code'],
     parentBoxId: json['parent_box_id'],
   )).toList();
   });

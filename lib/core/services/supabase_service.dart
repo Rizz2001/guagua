@@ -54,17 +54,25 @@ class SupabaseService {
   }
 
   /// Actualiza la tasa diaria manualmente en Supabase (Solo Admin/Supervisor).
-  Future<bool> updateDailyExchangeRate(double newRate, String userId) async {
+  Future<bool> updateDailyExchangeRate(double newRate, [String? userId]) async {
     if (client == null) return true;
     try {
       final response = await client!.rpc('actualizar_tasa_diaria', params: {
         'p_rate_bcv': newRate,
-        'p_user_id': userId,
       });
-      return response['success'] == true;
+      return response != null && response['success'] == true;
     } catch (e) {
-      debugPrint('Error actualizando tasa diaria en Supabase: $e');
-      return false;
+      debugPrint('RPC actualizar_tasa_diaria falló, intentando insert directo: $e');
+      try {
+        await client!.from('store_exchange_rates').insert({
+          'rate_bcv': newRate,
+          'effective_date': DateTime.now().toIso8601String().split('T').first,
+        });
+        return true;
+      } catch (insertError) {
+        debugPrint('Error en insert directo de tasa: $insertError');
+        return false;
+      }
     }
   }
 
@@ -82,7 +90,6 @@ class SupabaseService {
     try {
       final response = await client!.rpc('recepcionar_compra_proveedor', params: {
         'p_supplier_name': supplierName,
-        'p_user_id': userId,
         'p_items': items,
       });
       return response['success'] == true;

@@ -48,11 +48,14 @@ CREATE TABLE IF NOT EXISTS public.products (
   name TEXT NOT NULL,
   category TEXT NOT NULL,
   price_usd NUMERIC(15,2) NOT NULL CHECK (price_usd >= 0),
+  price_wholesale_usd NUMERIC(15,2) CHECK (price_wholesale_usd >= 0),
+  wholesale_min_qty INT DEFAULT 6 CHECK (wholesale_min_qty >= 1),
   cost_usd NUMERIC(15,2) NOT NULL DEFAULT 0.00 CHECK (cost_usd >= 0),
   stock INT NOT NULL DEFAULT 0 CHECK (stock >= 0),
   min_stock INT NOT NULL DEFAULT 5 CHECK (min_stock >= 0),
   parent_box_id UUID REFERENCES public.products(id),
   units_per_box INT NOT NULL DEFAULT 1 CHECK (units_per_box >= 1),
+  is_combo BOOLEAN NOT NULL DEFAULT FALSE,
   is_active BOOLEAN NOT NULL DEFAULT TRUE,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -125,6 +128,7 @@ CREATE TABLE IF NOT EXISTS public.sale_items (
   product_name TEXT NOT NULL,
   quantity INT NOT NULL CHECK (quantity > 0),
   unit_price_usd NUMERIC(15,2) NOT NULL CHECK (unit_price_usd >= 0),
+  unit_price_bs NUMERIC(15,2) NOT NULL DEFAULT 0.00 CHECK (unit_price_bs >= 0),
   subtotal_usd NUMERIC(15,2) NOT NULL CHECK (subtotal_usd >= 0)
 );
 ALTER TABLE public.sale_items ENABLE ROW LEVEL SECURITY;
@@ -140,6 +144,35 @@ CREATE TABLE IF NOT EXISTS public.spoilage_logs (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE public.spoilage_logs ENABLE ROW LEVEL SECURITY;
+
+-- 8. AUDITORÍA ANTI-FRAUDE (AUTORIZACIÓN DE SUPERVISOR)
+CREATE TABLE IF NOT EXISTS public.audit_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  action TEXT NOT NULL CHECK (action IN ('VOID_ITEM', 'VOID_CART', 'MANUAL_CASH_DRAWER', 'VOID_SALE', 'PRICE_CHANGE')),
+  user_id UUID REFERENCES public.profiles(id),
+  supervisor_id UUID REFERENCES public.profiles(id),
+  reason TEXT NOT NULL,
+  details JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
+
+-- 9. MULTI-SUCURSAL Y TRANSFERENCIAS INTERNAS DE MERCANCÍA
+CREATE TABLE IF NOT EXISTS public.stock_transfers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  transfer_number TEXT NOT NULL UNIQUE,
+  origin_store TEXT NOT NULL,
+  destination_store TEXT NOT NULL,
+  product_id UUID NOT NULL REFERENCES public.products(id),
+  product_name TEXT NOT NULL,
+  quantity INT NOT NULL CHECK (quantity > 0),
+  status TEXT NOT NULL DEFAULT 'EN_TRANSITO' CHECK (status IN ('EN_TRANSITO', 'CONFIRMADA', 'CANCELADA')),
+  dispatched_by UUID REFERENCES public.profiles(id),
+  received_by UUID REFERENCES public.profiles(id),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  confirmed_at TIMESTAMPTZ
+);
+ALTER TABLE public.stock_transfers ENABLE ROW LEVEL SECURITY;
 
 -- ==============================================================================
 -- FUNCIONES RPC ATÓMICAS (LÓGICA FINANCIERA Y OPERATIVA EN POSTGRESQL)
@@ -296,6 +329,12 @@ CREATE POLICY "Permitir todo en items de venta" ON public.sale_items FOR ALL TO 
 
 DROP POLICY IF EXISTS "Permitir todo en mermas" ON public.spoilage_logs;
 CREATE POLICY "Permitir todo en mermas" ON public.spoilage_logs FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Permitir todo en auditoria" ON public.audit_logs;
+CREATE POLICY "Permitir todo en auditoria" ON public.audit_logs FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Permitir todo en transferencias" ON public.stock_transfers;
+CREATE POLICY "Permitir todo en transferencias" ON public.stock_transfers FOR ALL TO public USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Solo Admin/Supervisor modifica tasa" ON public.store_exchange_rates;
 CREATE POLICY "Solo Admin/Supervisor modifica tasa" ON public.store_exchange_rates
